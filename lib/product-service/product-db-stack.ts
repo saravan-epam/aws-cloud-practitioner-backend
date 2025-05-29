@@ -35,4 +35,8 @@ export class ProductDbStack extends Stack {
 
     this.productsTable.grantWriteData(createProductLambda);
   }
+
+  public grantWriteData(table: "products", lambdaFunction: lambda.IFunction) {
+    this.productsTable.grantWriteData(lambdaFunction);
+  }
 }
