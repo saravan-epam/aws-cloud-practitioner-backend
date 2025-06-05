@@ -16,8 +16,10 @@ export class ImportServiceStack extends cdk.Stack {
   constructor(
     scope: Construct,
     id: string,
-    tables: ProductDbStack,
-    props?: cdk.StackProps
+    props: cdk.StackProps & {
+      basicAuthorizer: lambda.IFunction;
+      tables: ProductDbStack;
+    }
   ) {
     super(scope, id, props);
 
@@ -26,6 +28,14 @@ export class ImportServiceStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
+
+    const lambdaAuthorizer = new apigateway.TokenAuthorizer(
+      this,
+      "LambdaAuthorizer",
+      {
+        handler: props.basicAuthorizer,
+      }
+    );
 
     const importProductsFileLambda = new lambda.Function(
       this,
@@ -58,7 +68,7 @@ export class ImportServiceStack extends cdk.Stack {
 
     const createProductTopic = new sns.Topic(this, "CreateProductTopic");
     createProductTopic.addSubscription(
-      new EmailSubscription("saravan_somanchi@epam.com")
+      new EmailSubscription("yuliia_mykhaliak@epam.com")
     );
 
     const catalogBatchProcessLambda = new lambda.Function(
@@ -84,7 +94,7 @@ export class ImportServiceStack extends cdk.Stack {
     );
     createProductTopic.grantPublish(catalogBatchProcessLambda);
     catalogItemsQueue.grantSendMessages(importFileParserLambda);
-    tables.grantWriteData("products", catalogBatchProcessLambda);
+    props.tables.grantWriteData("products", catalogBatchProcessLambda);
 
     // Deploy an empty file to create the 'uploaded/' folder
     new s3deploy.BucketDeployment(this, "DeployUploadedFolder", {
@@ -110,7 +120,11 @@ export class ImportServiceStack extends cdk.Stack {
     const importProductsResource = api.root.addResource("import");
     importProductsResource.addMethod(
       "GET",
-      new apigateway.LambdaIntegration(importProductsFileLambda)
+      new apigateway.LambdaIntegration(importProductsFileLambda),
+      {
+        authorizer: lambdaAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+      }
     );
   }
 }
